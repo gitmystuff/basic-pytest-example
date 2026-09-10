@@ -26,18 +26,23 @@ from `github.com/...` to `github.dev/...` (or press `.` on the keyboard
 while viewing the repo). This opens a full VS Code editor in your browser,
 no install required.
 
-## Running it in-browser with no install at all (Pyodide)
+## Running it in-browser with no install at all (Pyodide + Monaco)
 
-This repo also includes a `docs/index.html` page that runs Python and
-pytest entirely inside your browser using **Pyodide** — a Python
-interpreter compiled to WebAssembly. No install, no terminal, nothing
-server-side.
+This repo also includes a `docs/` folder — `index.html` and
+`pyodide-worker.js` — that runs Python and pytest entirely inside your
+browser. Two technologies make this possible:
 
-This is the same tool used in `iris-classifier`, just pointed at the much
-smaller set of files this repo needs. Note that `iris-classifier` needs
-Pyodide's prebuilt NumPy/scikit-learn wheels for its ML step — this repo
-doesn't use any of that, so the page loads faster and only installs
-`pytest`.
+- **Pyodide** — a Python interpreter compiled to WebAssembly, running in a
+  background Web Worker so the page never freezes while code executes
+- **Monaco Editor** — the actual code-editing component that powers VS
+  Code (syntax highlighting, the VS Code dark theme), loaded from a CDN
+
+This is a direct adaptation of the same tool used in `iris-classifier`,
+scoped down to the much smaller set of files this repo needs. The one
+meaningful difference: `iris-classifier`'s worker loads NumPy and
+scikit-learn before it can run anything, since its ML code depends on
+them. This repo is plain Python, so the worker skips that step entirely
+and only installs `pytest` — noticeably faster to load.
 
 **To turn it on for your own fork:**
 
@@ -51,10 +56,11 @@ doesn't use any of that, so the page loads faster and only installs
 
 **Using the page:**
 
-1. Open your page's address. Wait for the green dot and "Python runtime
-   ready."
+1. Open your page's address. Wait for the status dot to turn green:
+   "Python runtime ready."
 2. Enter your GitHub username and repo name, click **Load repo**
-3. Click **Run main.py** to see the example output, or **Run pytest** to
+3. Click a file in the left sidebar to view it in the editor
+4. Click **Run main.py** to see the example output, or **Run pytest** to
    run the test suite — both execute live, right in your browser
 
 ## Running the test
