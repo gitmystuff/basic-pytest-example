@@ -424,12 +424,14 @@
   // ---------- File tree rendering ----------
   function renderFileTree() {
     const groups = {
+      "docs/": [],
       "tests/": [],
       "root": [],
     };
 
     Object.keys(loadedFiles).forEach((path) => {
-      if (path.startsWith("tests/")) groups["tests/"].push(path);
+      if (path.startsWith("docs/")) groups["docs/"].push(path);
+      else if (path.startsWith("tests/")) groups["tests/"].push(path);
       else groups["root"].push(path);
     });
 
@@ -455,12 +457,22 @@
     if (loadedFiles["main.py"]) selectFile("main.py");
   }
 
+  function languageForPath(path) {
+    if (path.endsWith(".py")) return "python";
+    if (path.endsWith(".html")) return "html";
+    if (path.endsWith(".js")) return "javascript";
+    if (path.endsWith(".md")) return "markdown";
+    if (path.endsWith(".json")) return "json";
+    return "plaintext"; // e.g. LICENSE, requirements.txt
+  }
+
   function selectFile(path) {
     if (!monacoReady) return;
     document.querySelectorAll(".file-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.path === path);
     });
     editorTabLabel.textContent = path;
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), languageForPath(path));
     monacoEditor.setValue(loadedFiles[path] || "");
   }
 

@@ -15,13 +15,25 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js");
 let pyodide = null;
 let pyodideReadyPromise = null;
 
-// The exact relative file paths we expect in a student's repo.
-// Centralized here so the fetch step and the FS-writing step always agree.
-const PROJECT_FILES = [
+// Files required for main.py/pytest to actually run. If any of these are
+// missing, loading the repo should fail loudly.
+const REQUIRED_FILES = [
   "average.py",
   "conftest.py",
   "main.py",
   "tests/test_average.py",
+];
+
+// Files that are nice to browse in the editor (to mimic a real VS Code
+// file explorer) but aren't needed to execute anything. If a fork is
+// missing one of these (e.g. someone removes the LICENSE), that should
+// NOT break loading the repo — these are fetched best-effort.
+const DISPLAY_ONLY_FILES = [
+  "README.md",
+  "requirements.txt",
+  "LICENSE",
+  "docs/index.html",
+  "docs/pyodide-worker.js",
 ];
 
 function post(type, payload) {
@@ -83,12 +95,25 @@ async function fetchRepoAndPopulate(owner, repo, branch) {
   await initPyodide();
 
   const files = {};
+  const allPaths = [...REQUIRED_FILES, ...DISPLAY_ONLY_FILES];
   let completed = 0;
 
-  for (const relPath of PROJECT_FILES) {
-    post("fetchProgress", { path: relPath, completed, total: PROJECT_FILES.length });
-    const content = await fetchRawFile(owner, repo, branch, relPath);
-    files[relPath] = content;
+  for (const relPath of REQUIRED_FILES) {
+    post("fetchProgress", { path: relPath, completed, total: allPaths.length });
+    // Required files must succeed — let a failure here throw and abort
+    // the whole load, since main.py/pytest can't run without them.
+    files[relPath] = await fetchRawFile(owner, repo, branch, relPath);
+    completed += 1;
+  }
+
+  for (const relPath of DISPLAY_ONLY_FILES) {
+    post("fetchProgress", { path: relPath, completed, total: allPaths.length });
+    try {
+      files[relPath] = await fetchRawFile(owner, repo, branch, relPath);
+    } catch (e) {
+      // Missing display-only file on a fork (e.g. no LICENSE) — skip it
+      // quietly rather than failing the whole load.
+    }
     completed += 1;
   }
 
@@ -101,9 +126,9 @@ async function fetchRepoAndPopulate(owner, repo, branch) {
   }
 
   // Create every needed subdirectory first (sorted so parents are made
-  // before children), then write all files.
+  // before children), then write all successfully-fetched files.
   const dirsNeeded = new Set();
-  for (const relPath of PROJECT_FILES) {
+  for (const relPath of Object.keys(files)) {
     if (relPath.includes("/")) {
       const parts = relPath.split("/").slice(0, -1);
       let acc = root;
@@ -119,7 +144,7 @@ async function fetchRepoAndPopulate(owner, repo, branch) {
     }
   }
 
-  for (const relPath of PROJECT_FILES) {
+  for (const relPath of Object.keys(files)) {
     const fullPath = `${root}/${relPath}`;
     try {
       pyodide.FS.writeFile(fullPath, files[relPath]);
