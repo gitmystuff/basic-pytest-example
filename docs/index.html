@@ -1,145 +1,550 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>basic-pytest-example — Run in Browser</title>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>basic-pytest-example — Run &amp; Test</title>
 <style>
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1b2a4a; }
-  h1 { font-size: 22px; }
-  .row { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
-  input[type=text] { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; min-width: 160px; }
-  button { padding: 8px 14px; border: none; border-radius: 6px; background: #2e86ab; color: white; font-size: 14px; cursor: pointer; }
-  button:disabled { background: #aab6c8; cursor: not-allowed; }
-  #status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d9534f; margin-right: 6px; }
-  #status-dot.ready { background: #4caf50; }
-  pre { background: #0f172a; color: #d7e6f5; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; }
-  .hint { color: #5b6b82; font-size: 13px; }
+  :root {
+    --bg: #1e1e1e;
+    --panel: #252526;
+    --panel-alt: #2d2d30;
+    --border: #3c3c3c;
+    --text: #d4d4d4;
+    --text-dim: #9a9a9a;
+    --accent: #4ec9b0;
+    --accent-strong: #2fa896;
+    --fail: #f48771;
+    --pass: #89d185;
+    --mono: "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    padding: 10px 16px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  header h1 span {
+    color: var(--accent);
+  }
+
+  .repo-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .repo-form input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+
+  .repo-form input[name="owner"] { width: 120px; }
+  .repo-form input[name="repo"] { width: 140px; }
+  .repo-form input[name="branch"] { width: 70px; }
+
+  .repo-form span.sep { color: var(--text-dim); font-family: var(--mono); }
+
+  button {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  button.primary {
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+    color: #0d1f1c;
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent); }
+
+  .status-bar {
+    padding: 5px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+  }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot.loading { background: #d7ba7d; animation: pulse 1.2s infinite; }
+  .dot.ready { background: var(--pass); }
+  .dot.error { background: var(--fail); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .file-tree {
+    width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 8px 0;
+    flex-shrink: 0;
+  }
+
+  .file-tree .group-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    padding: 10px 14px 4px;
+  }
+
+  .file-tree button.file-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 400;
+    padding: 5px 14px 5px 26px;
+    border-radius: 0;
+  }
+
+  .file-tree button.file-btn:hover:not(:disabled) {
+    background: var(--panel-alt);
+    color: var(--text);
+    border-color: transparent;
+  }
+
+  .file-tree button.file-btn.active {
+    background: var(--panel-alt);
+    color: var(--accent);
+    border-left: 2px solid var(--accent);
+    padding-left: 24px;
+  }
+
+  .editor-col {
+    flex: 1.3;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .editor-tab-label {
+    padding: 7px 14px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  #monaco-container {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .output-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .output-controls {
+    padding: 10px 14px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+
+  .output-panes {
+    flex: 1;
+    overflow-y: auto;
+    background: #181818;
+  }
+
+  .output-block {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .output-block-header {
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .output-block-header.success { color: var(--pass); }
+  .output-block-header.failure { color: var(--fail); }
+
+  .output-block pre {
+    margin: 0;
+    padding: 0 14px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+
+  .empty-state {
+    padding: 24px 16px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .empty-state code {
+    background: var(--panel-alt);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+  }
+
+  .progress-line {
+    padding: 4px 14px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
 </style>
 </head>
 <body>
 
-<h1>basic-pytest-example — Run in Browser</h1>
-<p class="hint">A minimal example of running Python and pytest entirely client-side, no install required, using Pyodide.</p>
+<div class="app">
+  <header>
+    <h1>pytest<span>·</span>runner</h1>
+    <form class="repo-form" id="repo-form">
+      <input type="text" name="owner" placeholder="github-username" value="gitmystuff" required />
+      <span class="sep">/</span>
+      <input type="text" name="repo" placeholder="repo-name" value="basic-pytest-example" required />
+      <span class="sep">@</span>
+      <input type="text" name="branch" placeholder="branch" value="main" required />
+      <button type="submit" class="primary" id="load-btn">Load repo</button>
+    </form>
+  </header>
 
-<div class="row">
-  <span id="status-dot"></span>
-  <span id="status-text">Loading Python runtime…</span>
+  <div class="status-bar">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">Starting Python runtime…</span>
+  </div>
+
+  <div class="main">
+    <nav class="file-tree" id="file-tree">
+      <div class="empty-state">
+        Enter a GitHub username and repo above, then click <strong>Load repo</strong> to preview files here.
+      </div>
+    </nav>
+
+    <div class="editor-col">
+      <div class="editor-tab-label" id="editor-tab-label">No file selected</div>
+      <div id="monaco-container"></div>
+    </div>
+
+    <div class="output-col">
+      <div class="output-controls">
+        <button id="run-main-btn" disabled>▶ Run main.py</button>
+        <button id="run-tests-btn" disabled>▶ Run pytest</button>
+      </div>
+      <div class="output-panes" id="output-panes">
+        <div class="empty-state">
+          Output from <code>main.py</code> and <code>pytest</code> will appear here once a repo is loaded.
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="row">
-  <input type="text" id="owner" placeholder="github-username" value="gitmystuff" />
-  <input type="text" id="repo" placeholder="repo-name" value="basic-pytest-example" />
-  <button id="load-btn" disabled>Load repo</button>
-</div>
-
-<div class="row">
-  <button id="run-main-btn" disabled>&#9654; Run main.py</button>
-  <button id="run-tests-btn" disabled>&#9654; Run pytest</button>
-</div>
-
-<pre id="output">Nothing run yet.</pre>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
 <script>
-const statusDot = document.getElementById("status-dot");
-const statusText = document.getElementById("status-text");
-const loadBtn = document.getElementById("load-btn");
-const runMainBtn = document.getElementById("run-main-btn");
-const runTestsBtn = document.getElementById("run-tests-btn");
-const output = document.getElementById("output");
-
-let pyodide;
-
-// Files this simple project needs, relative to the repo root.
-const FILES = [
-  "average.py",
-  "main.py",
-  "conftest.py",
-  "tests/test_average.py"
-];
-
-async function main() {
-  pyodide = await loadPyodide();
-  await pyodide.loadPackage("micropip");
-  const micropip = pyodide.pyimport("micropip");
-  await micropip.install("pytest");
-
-  statusDot.classList.add("ready");
-  statusText.textContent = "Python runtime ready";
-  loadBtn.disabled = false;
-}
-
-async function loadRepo() {
-  const owner = document.getElementById("owner").value.trim();
-  const repo = document.getElementById("repo").value.trim();
-  if (!owner || !repo) {
-    output.textContent = "Please enter both a GitHub username and repo name.";
-    return;
-  }
-
-  output.textContent = "Fetching files from GitHub...\n";
-  loadBtn.disabled = true;
-
-  try {
-    for (const path of FILES) {
-      const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${path}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`Could not fetch ${path} (HTTP ${res.status}). Check the username/repo and that it's public.`);
-      }
-      const text = await res.text();
-
-      // Make sure any subfolder (like tests/) exists in Pyodide's virtual filesystem
-      const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null;
-      if (dir) {
-        try { pyodide.FS.mkdir(dir); } catch (e) { /* already exists */ }
-      }
-      pyodide.FS.writeFile(path, text);
-      output.textContent += `  loaded ${path}\n`;
+  // ---------- Monaco setup ----------
+  // Monaco is loaded cross-domain from cdnjs. Browsers block cross-domain
+  // web workers, so without this proxy Monaco's language-feature workers
+  // fail silently in the console. Read-only display works either way, but
+  // this keeps things clean. (See: microsoft/monaco-editor cross-domain docs)
+  window.MonacoEnvironment = {
+    getWorkerUrl: function (workerId, label) {
+      return URL.createObjectURL(new Blob([`
+        self.MonacoEnvironment = { baseUrl: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/" };
+        importScripts("https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/base/worker/workerMain.js");
+      `], { type: "text/javascript" }));
     }
-    output.textContent += "\nRepo loaded. Ready to run.";
-    runMainBtn.disabled = false;
-    runTestsBtn.disabled = false;
-  } catch (err) {
-    output.textContent += `\nError: ${err.message}`;
-  } finally {
-    loadBtn.disabled = false;
+  };
+
+  require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs" } });
+
+  let monacoEditor = null;
+  let monacoReady = false;
+
+  require(["vs/editor/editor.main"], function () {
+    monacoEditor = monaco.editor.create(document.getElementById("monaco-container"), {
+      value: "",
+      language: "python",
+      theme: "vs-dark",
+      readOnly: true,
+      automaticLayout: true,
+      fontSize: 13,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+    });
+    monacoReady = true;
+  });
+
+  // ---------- Worker setup ----------
+  const worker = new Worker("pyodide-worker.js");
+
+  const statusDot = document.getElementById("status-dot");
+  const statusText = document.getElementById("status-text");
+  const loadBtn = document.getElementById("load-btn");
+  const runMainBtn = document.getElementById("run-main-btn");
+  const runTestsBtn = document.getElementById("run-tests-btn");
+  const fileTree = document.getElementById("file-tree");
+  const editorTabLabel = document.getElementById("editor-tab-label");
+  const outputPanes = document.getElementById("output-panes");
+  const repoForm = document.getElementById("repo-form");
+
+  let loadedFiles = {};
+  let pyodideReady = false;
+
+  function setStatus(message, kind) {
+    statusText.textContent = message;
+    statusDot.className = "dot" + (kind ? " " + kind : "");
   }
-}
 
-async function runCaptured(pythonCode) {
-  const capture = `
-import sys, io, contextlib
-_buf = io.StringIO()
-with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(_buf):
-    try:
-${pythonCode.split("\n").map(l => "        " + l).join("\n")}
-    except SystemExit:
-        pass
-    except Exception as e:
-        print(f"Error: {e}")
-_buf.getvalue()
-`;
-  return await pyodide.runPythonAsync(capture);
-}
+  function setButtonsEnabled() {
+    const repoLoaded = Object.keys(loadedFiles).length > 0;
+    runMainBtn.disabled = !(pyodideReady && repoLoaded);
+    runTestsBtn.disabled = !(pyodideReady && repoLoaded);
+    loadBtn.disabled = !pyodideReady;
+  }
 
-async function runMain() {
-  output.textContent = "Running main.py...\n\n";
-  const result = await runCaptured("exec(open('main.py').read())");
-  output.textContent = result || "(no output)";
-}
+  worker.postMessage({ type: "init" });
 
-async function runTests() {
-  output.textContent = "Running pytest...\n\n";
-  const result = await runCaptured("import pytest\npytest.main(['-v', 'tests/'])");
-  output.textContent = result || "(no output)";
-}
+  worker.onmessage = (event) => {
+    const data = event.data;
 
-loadBtn.addEventListener("click", loadRepo);
-runMainBtn.addEventListener("click", runMain);
-runTestsBtn.addEventListener("click", runTests);
+    if (data.type === "status") {
+      setStatus(data.message, "loading");
+    } else if (data.type === "ready") {
+      pyodideReady = true;
+      setStatus("Python runtime ready. Enter a repo to load.", "ready");
+      setButtonsEnabled();
+    } else if (data.type === "fetchProgress") {
+      setStatus(`Fetching ${data.path} (${data.completed}/${data.total})…`, "loading");
+    } else if (data.type === "repoLoaded") {
+      loadedFiles = data.files;
+      renderFileTree();
+      setStatus("Repo loaded. Ready to run.", "ready");
+      setButtonsEnabled();
+      loadBtn.disabled = false;
+      loadBtn.textContent = "Load repo";
+    } else if (data.type === "runComplete") {
+      appendOutputBlock(data.kind, data.output, data.success);
+      runMainBtn.disabled = false;
+      runTestsBtn.disabled = false;
+      runMainBtn.textContent = "▶ Run main.py";
+      runTestsBtn.textContent = "▶ Run pytest";
+    } else if (data.type === "error") {
+      setStatus("Error: " + data.message, "error");
+      loadBtn.disabled = false;
+      loadBtn.textContent = "Load repo";
+      runMainBtn.disabled = !(pyodideReady && Object.keys(loadedFiles).length > 0);
+      runTestsBtn.disabled = !(pyodideReady && Object.keys(loadedFiles).length > 0);
+      runMainBtn.textContent = "▶ Run main.py";
+      runTestsBtn.textContent = "▶ Run pytest";
+      if (Object.keys(loadedFiles).length === 0) {
+        fileTree.innerHTML = '<div class="empty-state">Could not load files. See the error below, then try <strong>Load repo</strong> again.</div>';
+      }
+      appendErrorBlock(data.message);
+    }
+  };
 
-main();
+  // ---------- File tree rendering ----------
+  function renderFileTree() {
+    const groups = {
+      "tests/": [],
+      "": [],
+    };
+
+    Object.keys(loadedFiles).forEach((path) => {
+      if (path.startsWith("tests/")) groups["tests/"].push(path);
+      else groups[""].push(path);
+    });
+
+    fileTree.innerHTML = "";
+
+    Object.entries(groups).forEach(([groupName, paths]) => {
+      if (paths.length === 0) return;
+      if (groupName) {
+        const label = document.createElement("div");
+        label.className = "group-label";
+        label.textContent = groupName;
+        fileTree.appendChild(label);
+      }
+      paths.forEach((path) => {
+        const btn = document.createElement("button");
+        btn.className = "file-btn";
+        btn.textContent = path.split("/").pop();
+        btn.dataset.path = path;
+        btn.addEventListener("click", () => selectFile(path));
+        fileTree.appendChild(btn);
+      });
+    });
+
+    // auto-select main.py if present
+    if (loadedFiles["main.py"]) selectFile("main.py");
+  }
+
+  function selectFile(path) {
+    if (!monacoReady) return;
+    document.querySelectorAll(".file-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.path === path);
+    });
+    editorTabLabel.textContent = path;
+    monacoEditor.setValue(loadedFiles[path] || "");
+  }
+
+  // ---------- Output rendering ----------
+  function clearEmptyState() {
+    const empty = outputPanes.querySelector(".empty-state");
+    if (empty) empty.remove();
+  }
+
+  function appendOutputBlock(kind, output, success) {
+    clearEmptyState();
+    const block = document.createElement("div");
+    block.className = "output-block";
+
+    const header = document.createElement("div");
+    header.className = "output-block-header " + (success ? "success" : "failure");
+    const label = kind === "tests" ? "pytest" : "main.py";
+    header.textContent = (success ? "✓ " : "✗ ") + label + (success ? " — passed" : " — failed");
+
+    const pre = document.createElement("pre");
+    pre.textContent = output.trim() || "(no output)";
+
+    block.appendChild(header);
+    block.appendChild(pre);
+    outputPanes.insertBefore(block, outputPanes.firstChild);
+  }
+
+  function appendErrorBlock(message) {
+    clearEmptyState();
+    const block = document.createElement("div");
+    block.className = "output-block";
+    const header = document.createElement("div");
+    header.className = "output-block-header failure";
+    header.textContent = "✗ Error";
+    const pre = document.createElement("pre");
+    pre.textContent = message;
+    block.appendChild(header);
+    block.appendChild(pre);
+    outputPanes.insertBefore(block, outputPanes.firstChild);
+  }
+
+  // ---------- Form + button wiring ----------
+  repoForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const owner = repoForm.owner.value.trim();
+    const repo = repoForm.repo.value.trim();
+    const branch = repoForm.branch.value.trim() || "main";
+    if (!owner || !repo) return;
+
+    loadedFiles = {};
+    fileTree.innerHTML = '<div class="empty-state">Loading files…</div>';
+    setButtonsEnabled();
+    loadBtn.disabled = true;
+    loadBtn.textContent = "Loading…";
+    setStatus(`Fetching files from ${owner}/${repo}@${branch}…`, "loading");
+
+    worker.postMessage({ type: "fetchRepo", payload: { owner, repo, branch } });
+  });
+
+  runMainBtn.addEventListener("click", () => {
+    runMainBtn.disabled = true;
+    runTestsBtn.disabled = true;
+    runMainBtn.textContent = "Running…";
+    setStatus("Running main.py…", "loading");
+    worker.postMessage({ type: "runMain" });
+  });
+
+  runTestsBtn.addEventListener("click", () => {
+    runMainBtn.disabled = true;
+    runTestsBtn.disabled = true;
+    runTestsBtn.textContent = "Running…";
+    setStatus("Running pytest…", "loading");
+    worker.postMessage({ type: "runTests" });
+  });
+
+  // ---------- Optional: prefill from ?owner=&repo=&branch= ----------
+  (function prefillFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("owner")) repoForm.owner.value = params.get("owner");
+    if (params.get("repo")) repoForm.repo.value = params.get("repo");
+    if (params.get("branch")) repoForm.branch.value = params.get("branch");
+  })();
 </script>
 
 </body>
