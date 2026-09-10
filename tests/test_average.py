@@ -1,3 +1,10 @@
+"""
+test_average.py
+
+Pytest test(s) for average.py. Written test-first: this defines what
+"correct" means for calculate_average() before the implementation exists.
+"""
+
 from average import calculate_average
 
 
