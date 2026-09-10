@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>basic-pytest-example — Run in Browser</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1b2a4a; }
+  h1 { font-size: 22px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+  input[type=text] { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; min-width: 160px; }
+  button { padding: 8px 14px; border: none; border-radius: 6px; background: #2e86ab; color: white; font-size: 14px; cursor: pointer; }
+  button:disabled { background: #aab6c8; cursor: not-allowed; }
+  #status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d9534f; margin-right: 6px; }
+  #status-dot.ready { background: #4caf50; }
+  pre { background: #0f172a; color: #d7e6f5; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; }
+  .hint { color: #5b6b82; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>basic-pytest-example — Run in Browser</h1>
+<p class="hint">A minimal example of running Python and pytest entirely client-side, no install required, using Pyodide.</p>
+
+<div class="row">
+  <span id="status-dot"></span>
+  <span id="status-text">Loading Python runtime…</span>
+</div>
+
+<div class="row">
+  <input type="text" id="owner" placeholder="github-username" value="gitmystuff" />
+  <input type="text" id="repo" placeholder="repo-name" value="basic-pytest-example" />
+  <button id="load-btn" disabled>Load repo</button>
+</div>
+
+<div class="row">
+  <button id="run-main-btn" disabled>&#9654; Run main.py</button>
+  <button id="run-tests-btn" disabled>&#9654; Run pytest</button>
+</div>
+
+<pre id="output">Nothing run yet.</pre>
+
+<script>
+const statusDot = document.getElementById("status-dot");
+const statusText = document.getElementById("status-text");
+const loadBtn = document.getElementById("load-btn");
+const runMainBtn = document.getElementById("run-main-btn");
+const runTestsBtn = document.getElementById("run-tests-btn");
+const output = document.getElementById("output");
+
+let pyodide;
+
+// Files this simple project needs, relative to the repo root.
+const FILES = [
+  "average.py",
+  "main.py",
+  "conftest.py",
+  "tests/test_average.py"
+];
+
+async function main() {
+  pyodide = await loadPyodide();
+  await pyodide.loadPackage("micropip");
+  const micropip = pyodide.pyimport("micropip");
+  await micropip.install("pytest");
+
+  statusDot.classList.add("ready");
+  statusText.textContent = "Python runtime ready";
+  loadBtn.disabled = false;
+}
+
+async function loadRepo() {
+  const owner = document.getElementById("owner").value.trim();
+  const repo = document.getElementById("repo").value.trim();
+  if (!owner || !repo) {
+    output.textContent = "Please enter both a GitHub username and repo name.";
+    return;
+  }
+
+  output.textContent = "Fetching files from GitHub...\n";
+  loadBtn.disabled = true;
+
+  try {
+    for (const path of FILES) {
+      const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${path}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Could not fetch ${path} (HTTP ${res.status}). Check the username/repo and that it's public.`);
+      }
+      const text = await res.text();
+
+      // Make sure any subfolder (like tests/) exists in Pyodide's virtual filesystem
+      const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null;
+      if (dir) {
+        try { pyodide.FS.mkdir(dir); } catch (e) { /* already exists */ }
+      }
+      pyodide.FS.writeFile(path, text);
+      output.textContent += `  loaded ${path}\n`;
+    }
+    output.textContent += "\nRepo loaded. Ready to run.";
+    runMainBtn.disabled = false;
+    runTestsBtn.disabled = false;
+  } catch (err) {
+    output.textContent += `\nError: ${err.message}`;
+  } finally {
+    loadBtn.disabled = false;
+  }
+}
+
+async function runCaptured(pythonCode) {
+  const capture = `
+import sys, io, contextlib
+_buf = io.StringIO()
+with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(_buf):
+    try:
+${pythonCode.split("\n").map(l => "        " + l).join("\n")}
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"Error: {e}")
+_buf.getvalue()
+`;
+  return await pyodide.runPythonAsync(capture);
+}
+
+async function runMain() {
+  output.textContent = "Running main.py...\n\n";
+  const result = await runCaptured("exec(open('main.py').read())");
+  output.textContent = result || "(no output)";
+}
+
+async function runTests() {
+  output.textContent = "Running pytest...\n\n";
+  const result = await runCaptured("import pytest\npytest.main(['-v', 'tests/'])");
+  output.textContent = result || "(no output)";
+}
+
+loadBtn.addEventListener("click", loadRepo);
+runMainBtn.addEventListener("click", runMain);
+runTestsBtn.addEventListener("click", runTests);
+
+main();
+</script>
+
+</body>
+</html>
