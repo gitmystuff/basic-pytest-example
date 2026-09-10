@@ -425,24 +425,22 @@
   function renderFileTree() {
     const groups = {
       "tests/": [],
-      "": [],
+      "root": [],
     };
 
     Object.keys(loadedFiles).forEach((path) => {
       if (path.startsWith("tests/")) groups["tests/"].push(path);
-      else groups[""].push(path);
+      else groups["root"].push(path);
     });
 
     fileTree.innerHTML = "";
 
     Object.entries(groups).forEach(([groupName, paths]) => {
       if (paths.length === 0) return;
-      if (groupName) {
-        const label = document.createElement("div");
-        label.className = "group-label";
-        label.textContent = groupName;
-        fileTree.appendChild(label);
-      }
+      const label = document.createElement("div");
+      label.className = "group-label";
+      label.textContent = groupName === "root" ? "(root)" : groupName;
+      fileTree.appendChild(label);
       paths.forEach((path) => {
         const btn = document.createElement("button");
         btn.className = "file-btn";
