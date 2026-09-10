@@ -1,4 +1,17 @@
 <!DOCTYPE html>
+<!--
+  index.html — basic-pytest-example runner page
+
+  A browser-based "run and test" tool for this repo, using Pyodide
+  (Python compiled to WebAssembly) and Monaco Editor (the same code
+  editor component that powers VS Code). No install required.
+
+  This page fetches a repo's files from GitHub, displays them in a
+  VS-Code-style file tree + editor, and lets you run main.py or the
+  pytest suite entirely client-side. The actual Python execution
+  happens in pyodide-worker.js (see that file for details) so this
+  page's UI never freezes while code runs.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8" />

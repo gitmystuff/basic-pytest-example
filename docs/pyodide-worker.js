@@ -4,8 +4,10 @@
  * Runs in a Web Worker so that Python execution never blocks the main
  * thread / UI. Handles three jobs, triggered by postMessage from the
  * main page:
- *   - init: load Pyodide + scikit-learn/numpy/pandas (one-time)
- *   - fetchRepo: pull a student's files from GitHub and write them into
+ *   - init: load Pyodide + pytest (one-time). No ML packages needed —
+ *     this repo is plain Python, unlike iris-classifier which also
+ *     loads scikit-learn/numpy/pandas here.
+ *   - fetchRepo: pull a repo's files from GitHub and write them into
  *     Pyodide's virtual filesystem, preserving folder structure
  *   - runMain / runTests: execute code, streaming stdout back
  */
